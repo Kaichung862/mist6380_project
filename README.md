@@ -1,3 +1,4 @@
+
 # Quantifying the Airline "Monopoly Tax": Market Concentration and Pricing Dynamics in U.S. Domestic Aviation
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
@@ -5,136 +6,79 @@
 [![Data Source: EIA](https://img.shields.io/badge/Data-EIA%20Jet%20Fuel%20API-green.svg)](https://www.eia.gov/opendata/)
 [![Format: Parquet](https://img.shields.io/badge/Format-Apache%20Parquet-red.svg)](https://parquet.apache.org/)
 
+**Authors:** Ben An, Dan Mosu, Kai Clancy, Kate Bloom, Priyanka Govani[cite: 1]  
+**Course:** MIST 6380[cite: 1]  
+**Deliverables:** Jupyter Notebook (`.ipynb`) & Presentation Slides (`.pdf` / `.pptx`)
+
 ---
 
 ## 📌 Project Overview & Motivation
 
-Commercial air travel is a critical backbone of the U.S. economy, generating billions of dollars annually from millions of passengers traveling for work, family, and leisure. While travelers theoretically have multiple airlines to choose from nationwide, airline competition operates on a **route-by-route** basis. 
+Commercial aviation is an essential driver of the U.S. economy, yet competition rarely plays out on a truly national level—it happens route-by-route[cite: 1]. While travelers may enjoy numerous carrier choices nationally, individual city-pair markets are frequently dominated by one or two airlines[cite: 1]. 
 
-When a single airline captures dominant market share on a specific city-pair route, passengers lose competitive leverage. This project investigates and quantifies the **"Monopoly Tax"**—the premium travelers pay driven by market dominance rather than legitimate operating costs or organic supply and demand.
+When a carrier captures a dominant market share on a specific route, passengers lose alternative options, allowing airlines to extract a **"Monopoly Tax"**—an artificial pricing premium driven by market dominance rather than operational flight costs or standard supply/demand[cite: 1].
 
-### Core Objectives
-1. **Calculate the Price Markup:** Measure the direct dollar and percentage premium passengers pay when one airline dominates a city-pair flight path.
-2. **Analyze Distance Dynamics:** Determine whether monopoly power is leveraged more heavily on short-haul flights (competing with ground transit) or long-haul flights (where flying is the sole viable option).
-3. **Build a Fair-Price Forecast:** Train a predictive model to establish baseline fair ticket prices, identifying the most overcharged routes in U.S. domestic aviation.
-
----
-
-## 👥 Authors & Team
-* **Ben An**
-* **Dan Mosu**
-* **Kai Clancy**
-* **Kate Bloom**
-* **Priyanka Govani**
-
-*Course Project for MIST 6380.*
+This project designs and executes an end-to-end data analytics pipeline to:
+1. **Quantify the Markup:** Measure the exact dollar and percentage premium passengers pay on single-carrier-dominated routes[cite: 1, 2].
+2. **Evaluate Distance Effects:** Compare carrier pricing power across short-haul routes (where ground transit offers substitution) versus long-haul routes (where flying is unavoidable)[cite: 1, 3].
+3. **Model Fair Fares:** Train an intuitive pricing model that benchmarks expected ticket prices and pinpoints the most gouged domestic routes[cite: 1, 3].
 
 ---
 
-## 🏗️ Architecture & Pipeline
+## 🏗️ Analytics Pipeline Architecture
 
-```text
-[ DOT Socrata API ] ──┐
-                      ├──> [ Stage 1: Ingestion ] ──> [ Stage 2: Processing & Cleaning ]
-[ EIA Fuel Spot API ] ┘                                          │
-                                                                 ▼
-[ Stage 5: Dashboards & Insights ] <── [ Stage 4: Analytics ] <── [ Stage 3: Parquet Storage ]
-```
+The pipeline follows a five-stage structure:
 
----
+[ Data Capture ] ──> [ Data Processing ] ──> [ Data Storage ] ──> [ Analysis & Modeling ] ──> [ Communication ]
 
-## 🔄 Project Stages
+DOT API            - Cleaning & Typing     - Local Parquet      - ANOVA / T-Tests           - Visualizations
 
-### Stage 1: Data Ingestion (`Capture`)
-Automated extraction via Python `requests` targeting two primary APIs:
-* **U.S. DOT Domestic Airline Consumer Airfare Report (Socrata API):** Quarterly route records including origin/destination cities (`city1`, `city2`), non-stop flight distance (`nsmiles`), passenger volume (`passengers`), average fare (`fare`), lead carrier (`carrier_lg`), lead carrier market share (`large_ms`), and lead carrier average fare (`fare_lg`).
-* **U.S. Energy Information Administration (EIA) API:** Monthly jet fuel spot prices aligned with corresponding quarters to isolate true pricing power from operating cost fluctuations.
+EIA Fuel API       - Feature Engineering   - Partitioned        - Regressions / ML          - Slide Deck
 
-### Stage 2: Data Cleaning & Processing (`Process`)
-* **Standardization:** Currency strings stripped and converted to numeric floats; `large_ms` converted to standard decimals; city/state identifiers normalized from metropolitan area tags.
-* **Filtering:** Pruning incomplete records and low-volume routes ($<10$ passengers/day) to eliminate statistical noise.
+
+### 1. Capture
+* **Primary Source (DOT Airfare API):** Extracted via the Data.gov Socrata Open Data API (`data.transportation.gov`) from the U.S. Bureau of Transportation Statistics Domestic Airline Consumer Airfare Report[cite: 1]. Captures city pairs (`city1`, `city2`), route distance (`nsmiles`), passenger volume (`passengers`), average market fare (`fare`), dominant carrier (`carrier_lg`), dominant market share (`large_ms`), and dominant carrier fare (`fare_lg`)[cite: 1, 2].
+* **Enrichment Source (EIA Jet Fuel API):** Monthly jet fuel spot prices from the U.S. Energy Information Administration (EIA) to control for macro fuel cost shocks across analyzed quarters[cite: 2].
+
+### 2. Process
+* **Cleaning & Formatting:** Cleans text formatting, strips non-numeric characters from currency fields, normalizes market share to standard decimal percentages, and removes routes with fewer than 10 passengers per day to eliminate statistical noise[cite: 2].
 * **Feature Engineering:**
-  * **Airline Fare Premium (Markup):** 
-    $$\text{Dollar Markup} = \text{fare\_lg} - \text{fare}$$
-  * **Cost-Per-Mile:** 
-    $$\text{CPM} = \frac{\text{fare}}{\text{nsmiles}}$$
-  * **Competition Tiers:**
-    * **Competitive:** Lead carrier market share $< 40\%$
-    * **Concentrated:** Lead carrier market share between $40\%$ and $65\%$
-    * **Monopolized:** Lead carrier market share $> 65\%$
+  * **Markup Surcharge:** Measures absolute dollar and percentage differences between dominant carrier fares and aggregate market fares (`fare_lg - fare`)[cite: 2, 3].
+  * **Competition Tiers:** Categorizes routes into **Competitive** (<40% lead carrier share), **Concentrated** (40%–65%), and **Monopolized** (>65%)[cite: 2].
+  * **Normalized Pricing:** Calculates Cost-per-Mile (`fare / nsmiles`) to standardize comparisons across varied route lengths[cite: 2].
 
-### Stage 3: Storage & Data Management (`Store`)
-* **Format:** Serialized to **Apache Parquet** for typed columns, high-compression ratios, and fast parallel reads.
-* **Partitioning:** Partitioned chronologically by year and quarter:
-  ```text
-  data/
-  └── processed/
-      └── year=YYYY/
-          └── quarter=QX/
-              └── routes.parquet
-  ```
+### 3. Store
+* Cleaned and enriched records are serialized into **Apache Parquet** format to provide high-performance columnar compression and type enforcement[cite: 2].
+* Files are partitioned logically by year and quarter (`/data/processed/year=YYYY/quarter=Q/`) to enable modular queries without reprocessing historical data[cite: 2].
 
-### Stage 4: Analytics & Statistical Modeling (`Analyze`)
-* **Insight 1: Monopoly Surcharge Analysis:** Difference-of-means tests (ANOVA / independent $t$-tests) across competition tiers, controlling for flight distance.
-* **Insight 2: Distance vs. Pricing Power:** Correlation and scatter regression evaluating the relationship between distance (`nsmiles`) and pricing markup, evaluating price elasticity on routes $<400$ miles versus coast-to-coast flights.
-* **Insight 3: Predictive Fair-Price Modeling:** Multiple Linear Regression and Random Forest models trained on `nsmiles`, `large_ms`, quarter seasonality, passenger volume, and jet fuel prices to calculate an expected fair market ticket price and isolate predatory pricing anomalies.
+### 4. Analyze
+* **Monopoly Surcharge Assessment:** Statistical difference-of-means tests (ANOVA / independent $t$-tests) across competition tiers while controlling for distance[cite: 2, 3].
+* **Distance Elasticity:** Correlation and regression analysis measuring dominant carrier pricing power on short-haul flights (<400 miles) versus transcontinental routes[cite: 3].
+* **Fair-Fare Estimation & Anomaly Detection:** Predictive models (Multiple Linear Regression / Random Forest) trained on flight distance, market concentration, passenger volume, quarter seasonality, and fuel indices to flag the most overpriced flight paths[cite: 3].
 
-### Stage 5: Reporting & Communication (`Communicate`)
-* **Comparative Box Plots:** Ticket prices across Competitive, Concentrated, and Monopolized routes.
-* **Distance Scatter Plot:** Fare vs. distance color-coded by dominant carrier.
-* **Top-10 Gouged Routes:** Ranked table of city pairs exhibiting the highest monopoly markups.
-* **Executive Summary:** Strategic guidance for individual travelers, enterprise travel planners, and transportation policy makers.
+### 5. Communicate
+* Distribution box plots of airfares segmented by competition tier[cite: 3].
+* Distance-versus-fare scatter plots colored by dominant carrier to highlight market anomalies[cite: 3].
+* Top-10 summary table of the most overpriced U.S. domestic routes[cite: 3].
 
 ---
 
-## 📁 Repository Structure
+## 📂 Repository Structure
 
 ```text
 ├── data/
-│   ├── raw/                  # Staged raw API JSON responses
-│   └── processed/            # Partitioned Parquet data files
-├── notebooks/                # Exploratory data analysis & prototyping
+│   ├── raw/                   # Staged raw API JSON responses
+│   └── processed/             # Cleaned Parquet partitions (year=YYYY/quarter=Q/)
+├── notebooks/
+│   └── airline_monopoly_analysis.ipynb  # End-to-end pipeline, code, and annotations
+├── presentation/
+│   └── MIST6380_Final_Presentation.pdf  # 10-minute presentation slide deck
 ├── src/
-│   ├── ingest.py             # API fetching scripts (DOT & EIA)
-│   ├── transform.py          # Data cleaning and feature engineering
-│   └── models.py             # Fair-price regression & evaluation models
-├── visuals/                  # Generated figures, plots, and tables
-├── requirements.txt          # Python dependencies
-└── README.md                 # Project documentation
-```
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-* Python 3.9+
-* API keys for [Data.gov](https://data.transportation.gov) and [EIA Open Data](https://www.eia.gov/opendata/)
-
-### Installation
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/<your-username>/airline-monopoly-tax.git
-   cd airline-monopoly-tax
-   ```
-
-2. Set up a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Configure your environment variables by creating a `.env` file in the root directory:
-   ```env
-   DOT_API_KEY=your_dot_api_key_here
-   EIA_API_KEY=your_eia_api_key_here
-   ```
-
+│   ├── capture.py             # DOT and EIA API ingestion scripts
+│   ├── process.py             # Data transformation & feature engineering
+│   └── models.py              # Statistical tests and pricing models
+├── README.md
+└── requirements.txt
 ---
 
 ## 📜 License
