@@ -14,34 +14,28 @@ By integrating U.S. Department of Transportation (DOT) origin-destination ticket
 ## 🏗️ Architecture & Pipeline Flow
 The project implements an automated ETL pipeline that ingests, cleans, harmonizes, and models multi-source time-series panel data:
 
-┌─────────────────────────────────┐       ┌─────────────────────────────────┐
-│     DOT DB1B / BTS Airfare      │       │     EIA Jet Fuel Spot Price     │
-│ (10% Ticket Sample, Quarterly)  │       │  (U.S. Gulf Coast Kerosene, W)  │
-└────────────────┬────────────────┘       └────────────────┬────────────────┘
-│                                         │
-└───────────────────┬─────────────────────┘
-▼
-┌─────────────────────────────────┐
-│  Data Cleaning & Preprocessing  │
-│ - O&D Airport Standardization   │
-│ - Exclude Non-Commercial Fares  │
-│ - Impute Stage Length (Miles)   │
-└────────────────┬────────────────┘
-▼
-┌─────────────────────────────────┐
-│       Feature Engineering       │
-│ - Carrier Share & Route HHI     │
-│ - Market Regimes (Monopoly/Comp)│
-│ - Fare Yield (¢ / Non-Stop Mile)│
-│ - Temporal Alignment (Quarter)  │
-└────────────────┬────────────────┘
-▼
-┌─────────────────────────────────┐
-│    Econometric Modeling & FE    │
-│ - OLS Pooled Regressions        │
-│ - Carrier & Time Fixed Effects  │
-│ - Cost Decoupling Verification  │
-└─────────────────────────────────┘
+```text
+[ DOT DB1B Airfare API ]          [ EIA Jet Fuel Spot Price ]
+  (10% Sample, Quarterly)           (U.S. Gulf Coast Kerosene)
+             │                                   │
+             └─────────────────┬─────────────────┘
+                               ▼
+            [ Data Cleaning & Preprocessing ]
+            • Standardize O&D airport pairs
+            • Remove non-commercial / charter fares
+            • Filter valid stage lengths (miles)
+                               ▼
+            [ Feature Engineering & Panel Merge ]
+            • Carrier market share & route HHI
+            • Competition regimes (Monopoly / Concentrated)
+            • Fare yield normalization (¢ / mile)
+            • Quarterly temporal alignment
+                               ▼
+            [ Econometric Modeling & Inference ]
+            • Multivariate OLS & fixed-effects models
+            • Fuel pass-through elasticity testing
+            • Top 10 marked-up corridor identification
+```
 
 
 ---
